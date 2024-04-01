@@ -322,6 +322,14 @@ public class DLListTest extends TestCase {
         assertTrue(exception instanceof NoSuchElementException);
         assertFalse(iter.hasNext());
     }
-
+    public void testSize2() {
+        list.add("1");
+        list.add("10");
+        list.add("100");
+        assertEquals(3,list.size());
+        list.clear();
+        assertEquals(0,list.size());
+    }
 }
-//C:\Documents\CS2_projects\Lab10DLListSkeleton
+//\CS2_projects\Lab10DLListSkeleton
+//Lab10DoublyLinkedList\src\doublylinkedlist
