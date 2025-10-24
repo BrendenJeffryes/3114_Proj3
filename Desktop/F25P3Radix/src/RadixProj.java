@@ -9,8 +9,8 @@ import java.io.*;
 /**
  * The class containing the main method.
  *
- * @author {Your Name Here}
- * @version {Put Something Here}
+ * @author Peter Reilly (preilly) Brenden Jeffryes (jbrenden)
+ * @version Milestone 1
  */
 
 //On my honor:
