@@ -11,13 +11,16 @@ import java.io.*;
  */
 public class Radix {
     private final int recordSize = 8; // 8 bytes per record
+    private final int totalMem = 900000;
     private final int readMem = 300000; // RAM for reading the data
     private final int writeMem = 600000; // RAM for writing the sorted data
     private final int radix = 256; // radix per byte(256 values)
     private final int numPasses = 4; // number of passes
 
-    // buffer for reading chunks of records
-    private final ByteBuffer readBuffer = ByteBuffer.allocate(readMem);
+    //buffers
+    private final ByteBuffer memoryTot; 
+    private final ByteBuffer readBuffer; 
+    //private final ByteBuffer readBuffer = ByteBuffer.allocate(readMem);
     // array of buffers. One for each bucket
     private final ByteBuffer[] bucketBuffers = new ByteBuffer[radix];
     // current position, per bucket, inside the output file
@@ -45,6 +48,30 @@ public class Radix {
      */
     public Radix(RandomAccessFile theFile, PrintWriter s) throws IOException {
 
+        //allocate the allowed 900kb of memory
+        memoryTot = ByteBuffer.allocate(totalMem);
+        
+        //set up read Buffer
+        memoryTot.clear();
+        memoryTot.limit(readMem);
+        readBuffer = memoryTot.slice();
+        
+        //set up write buffer
+        memoryTot.position(readMem);
+        memoryTot.limit(readMem + writeMem);
+        ByteBuffer bucketsRegion = memoryTot.slice();
+        
+        //chop up into 256 buckets
+        int bucketSize = writeMem / radix;  // same logic as before, 600000/256
+        for (int i = 0; i < radix; i++) {
+            int start = i * bucketSize;
+            int end   = start + bucketSize;
+
+            bucketsRegion.position(start);
+            bucketsRegion.limit(end);
+            bucketBuffers[i] = bucketsRegion.slice();
+        }
+        
         // set input file and channel
         inputFile = theFile;
         inputChannel = inputFile.getChannel();
@@ -57,17 +84,10 @@ public class Radix {
         outputFile = new RandomAccessFile(tempFile, "rw");
         outputChannel = outputFile.getChannel();
 
-        // allocate memory for the 256 buckets
-        int bucketSize = writeMem / radix;
-        for (int i = 0; i < radix; i++) {
-            bucketBuffers[i] = ByteBuffer.allocate(bucketSize);
-        }
-
         numRecords = theFile.length() / recordSize;
         // run sort
         radixSort();
     }
-
 
     /**
      * Do a Radix sort
@@ -92,12 +112,12 @@ public class Radix {
             computeWritePositions();
             // write to buckets after reading
             writeRecords(rtok);
-
+            
             // flush any remaining buffers
             for (int i = 0; i < radix; i++) {
                 flushBucket(i);
             }
-
+            
             // swap files and channels
             RandomAccessFile tempF = inputFile;
             inputFile = outputFile;
@@ -115,6 +135,7 @@ public class Radix {
         if (!sortedInA) {
             copyFile(inputFile, outputFile, readBuffer);
         }
+        
     }
 
 
@@ -206,7 +227,7 @@ public class Radix {
                 int value = intBuf.get(2 * i + 1);
                 // find what bucket we need
                 int digit = (key / rtok) % radix;
-
+                
                 // Write record to buffer
                 ByteBuffer buf = bucketBuffers[digit];
                 buf.putInt(key);
