@@ -17,10 +17,10 @@ public class Radix {
     private final int radix = 256; // radix per byte(256 values)
     private final int numPasses = 4; // number of passes
 
-    //buffers
-    private final ByteBuffer memoryTot; 
-    private final ByteBuffer readBuffer; 
-    //private final ByteBuffer readBuffer = ByteBuffer.allocate(readMem);
+    // buffers
+    private final ByteBuffer memoryTot;
+    private final ByteBuffer readBuffer;
+    // private final ByteBuffer readBuffer = ByteBuffer.allocate(readMem);
     // array of buffers. One for each bucket
     private final ByteBuffer[] bucketBuffers = new ByteBuffer[radix];
     // current position, per bucket, inside the output file
@@ -36,6 +36,11 @@ public class Radix {
     private FileChannel inputChannel;
     private FileChannel outputChannel;
 
+    // a count for the number of reads (in blocks) from the input file
+    private int numReads;
+    // a count for the number of writes (in blocks) to the output file
+    private int numWrites;
+
     /**
      * Create a new Radix object.
      * 
@@ -48,30 +53,36 @@ public class Radix {
      */
     public Radix(RandomAccessFile theFile, PrintWriter s) throws IOException {
 
-        //allocate the allowed 900kb of memory
+        // allocate the allowed 900kb of memory
         memoryTot = ByteBuffer.allocate(totalMem);
-        
-        //set up read Buffer
+
+        // set up read Buffer
         memoryTot.clear();
         memoryTot.limit(readMem);
         readBuffer = memoryTot.slice();
-        
-        //set up write buffer
+
+        // set up write buffer
         memoryTot.position(readMem);
         memoryTot.limit(readMem + writeMem);
         ByteBuffer bucketsRegion = memoryTot.slice();
-        
-        //chop up into 256 buckets
-        int bucketSize = writeMem / radix;  // same logic as before, 600000/256
+
+        s.append("Size of the single block of memory for reading: " + readMem
+            + "kb\n");
+
+        // chop up into 256 buckets
+        int bucketSize = writeMem / radix; // same logic as before, 600000/256
         for (int i = 0; i < radix; i++) {
             int start = i * bucketSize;
-            int end   = start + bucketSize;
+            int end = start + bucketSize;
 
             bucketsRegion.position(start);
             bucketsRegion.limit(end);
             bucketBuffers[i] = bucketsRegion.slice();
         }
-        
+
+        s.append("Number of writing blocks/buckets: " + radix + "\n");
+        s.append("Size per bucket: " + bucketSize + "kb\n");
+
         // set input file and channel
         inputFile = theFile;
         inputChannel = inputFile.getChannel();
@@ -85,9 +96,19 @@ public class Radix {
         outputChannel = outputFile.getChannel();
 
         numRecords = theFile.length() / recordSize;
+
+        // initialize values for these fields
+        numReads = 0;
+        numWrites = 0;
+
         // run sort
         radixSort();
+
+        s.append("Number of reads: " + numReads + "/n");
+        s.append("Number of writes: " + numWrites + "/n");
+
     }
+
 
     /**
      * Do a Radix sort
@@ -112,12 +133,12 @@ public class Radix {
             computeWritePositions();
             // write to buckets after reading
             writeRecords(rtok);
-            
+
             // flush any remaining buffers
             for (int i = 0; i < radix; i++) {
                 flushBucket(i);
             }
-            
+
             // swap files and channels
             RandomAccessFile tempF = inputFile;
             inputFile = outputFile;
@@ -135,7 +156,7 @@ public class Radix {
         if (!sortedInA) {
             copyFile(inputFile, outputFile, readBuffer);
         }
-        
+
     }
 
 
@@ -162,6 +183,9 @@ public class Radix {
             inputChannel.position(pos * recordSize);
             inputChannel.read(readBuffer);
             readBuffer.flip();
+
+            // read the file, so increment the count
+            numReads++;
 
             // convert from byte to int
             IntBuffer intBuf = readBuffer.asIntBuffer();
@@ -218,6 +242,9 @@ public class Radix {
             inputChannel.read(readBuffer);
             readBuffer.flip();
 
+            // read the file, so increment the count
+            numReads++;
+
             // convert to int
             IntBuffer intBuf = readBuffer.asIntBuffer();
 
@@ -227,7 +254,7 @@ public class Radix {
                 int value = intBuf.get(2 * i + 1);
                 // find what bucket we need
                 int digit = (key / rtok) % radix;
-                
+
                 // Write record to buffer
                 ByteBuffer buf = bucketBuffers[digit];
                 buf.putInt(key);
@@ -261,6 +288,10 @@ public class Radix {
         buf.flip();
         outputChannel.position(writePos[digit]);
         outputChannel.write(buf);
+
+        // wrote to file, so increment count;
+        numWrites++;
+
         writePos[digit] += buf.limit();
         buf.clear();
     }
@@ -277,7 +308,7 @@ public class Radix {
      *            is the buffer we're using to transfer the data
      * @throws IOException
      */
-    private static void copyFile(
+    private void copyFile(
         RandomAccessFile source,
         RandomAccessFile dest,
         ByteBuffer buffer)
@@ -297,13 +328,16 @@ public class Radix {
         while (true) {
             buffer.clear();
             int bytesRead = srcChannel.read(buffer);
+            numReads++;
             // check if we're at the end
             if (bytesRead == -1)
                 break;
             // write data
             buffer.flip();
-            while (buffer.hasRemaining())
+            while (buffer.hasRemaining()) {
                 destChannel.write(buffer);
+                numWrites++;
+            }
         }
     }
 }

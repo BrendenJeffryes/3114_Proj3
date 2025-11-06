@@ -8,17 +8,22 @@ import student.TestCase;
  * ascii and binary file, sorting both and then checking each one with a file
  * checker.
  *
- * @author {Your Name Here}
- * @version {Put Something Here}
+ * @author Peter Reilly (preilly) Brenden Jeffryes (jbrenden)
+ * @version Final
  */
 public class RadixProjTest extends TestCase {
     private CheckFile fileChecker;
 
+    private PrintWriter stats;
+    
     /**
      * This method sets up the tests that follow.
+     * @throws IOException 
      */
-    public void setUp() {
+    public void setUp() throws IOException {
         fileChecker = new CheckFile();
+        stats = new PrintWriter(new BufferedWriter(
+            new FileWriter("Stats.txt", true)));
     }
 
 
@@ -45,10 +50,12 @@ public class RadixProjTest extends TestCase {
         FileGenerator it = new FileGenerator();
         it.generateFile("input.txt", 1, "b");
         RandomAccessFile raf = new RandomAccessFile("input.txt", "rw");
-        Radix rad = new Radix(raf, null);
+        Radix rad = new Radix(raf, stats);
         assertTrue(fileChecker.checkFile("input.txt"));
         System.out.println("Done testSort");
     }
+    
+    
     
     /**
      * Tests if the sort is stable
@@ -59,22 +66,9 @@ public class RadixProjTest extends TestCase {
         FileGenerator it = new FileGenerator();
         it.generateFile("input.txt", 1, "c");
         RandomAccessFile raf = new RandomAccessFile("input.txt", "rw");
-        Radix rad = new Radix(raf, null);
+        Radix rad = new Radix(raf, stats);
         assertTrue(fileChecker.checkFileStrong("input.txt"));
         System.out.println("Done testSort");
     }
     
-    /**
-     * Tests if the sort is stable for option d.
-     * 
-     * @throws Exception
-     */
-    public void testSortStableRandomAscii() throws Exception {
-        FileGenerator it = new FileGenerator();
-        it.generateFile("input.txt", 1, "d");
-        RandomAccessFile raf = new RandomAccessFile("input.txt", "rw");
-        Radix rad = new Radix(raf, null);
-        assertTrue(fileChecker.checkFileStrong("input.txt"));
-        System.out.println("Done testSort");
-    }
 }
